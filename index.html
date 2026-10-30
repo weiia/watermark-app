@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>珍奇浮水印</title>
+<meta name="description" content="上傳照片，拖曳 Logo 到想要的位置，存回手機。照片只在你的裝置上處理。">
+<meta name="theme-color" content="#14201a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="珍奇浮水印">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root {
+  --bg: #14201a;
+  --panel: #1d2c24;
+  --line: #34473c;
+  --text: #f1f5f0;
+  --muted: #a9b8ad;
+  --accent: #a4d65e;
+  --accent-ink: #14201a;
+  --danger: #ffb4a8;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  overflow: hidden;
+}
+.sr-only { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.app {
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px, env(safe-area-inset-left));
+}
+header { display: flex; align-items: center; justify-content: space-between; min-height: 52px; }
+h1 { font-size: 17px; font-weight: 600; margin: 0; }
+.ghost {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px;
+  color: var(--accent); font: inherit; font-size: 15px; background: none; border: 0; cursor: pointer;
+}
+.ghost[hidden] { display: none; }
+
+#stage { position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; touch-action: none; }
+#frame { position: relative; line-height: 0; }
+#photo { width: 100%; height: 100%; display: block; pointer-events: none; -webkit-user-drag: none; }
+#logo {
+  position: absolute; transform: translate(-50%, -50%);
+  cursor: grab; touch-action: none; -webkit-user-drag: none;
+  outline: 1.5px dashed rgba(255, 255, 255, .85); outline-offset: 2px;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, .35));
+}
+#logo:focus-visible { outline: 2px solid var(--accent); }
+#logo.dragging { cursor: grabbing; }
+
+#empty {
+  width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; text-align: center; border: 1.5px dashed var(--line); border-radius: 16px; cursor: pointer; padding: 24px;
+}
+#empty.over { border-color: var(--accent); }
+#empty img { width: 132px; height: 132px; border-radius: 28px; }
+#empty strong { font-size: 19px; font-weight: 600; }
+#empty span { color: var(--muted); font-size: 14px; }
+#empty[hidden], #frame[hidden], #controls[hidden] { display: none; }
+
+#controls { padding: 10px 0 12px; display: grid; gap: 8px; }
+.row { display: grid; grid-template-columns: 3.2em 1fr 3em; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+.row output { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; height: 32px; margin: 0; accent-color: var(--accent); }
+.chips { display: flex; gap: 8px; }
+.chip {
+  flex: 1; min-height: 40px; font: inherit; font-size: 14px; color: var(--text);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; cursor: pointer;
+}
+.chip[hidden] { display: none; }
+#thumbs { display: flex; gap: 8px; overflow-x: auto; padding: 6px 0 2px; -webkit-overflow-scrolling: touch; }
+#thumbs:empty { display: none; }
+.thumb { position: relative; flex: 0 0 auto; }
+.thumb button:first-child { display: block; width: 52px; height: 52px; padding: 0; border: 2px solid transparent; border-radius: 10px; overflow: hidden; background: none; cursor: pointer; }
+.thumb.on button:first-child { border-color: var(--accent); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb .x {
+  position: absolute; top: -5px; right: -5px; width: 22px; height: 22px; padding: 0; line-height: 20px;
+  border: 0; border-radius: 50%; background: #000; color: #fff; font-size: 13px; cursor: pointer;
+}
+#save {
+  width: 100%; min-height: 50px; font: inherit; font-weight: 600; color: var(--accent-ink);
+  background: var(--accent); border: 0; border-radius: 12px; cursor: pointer;
+}
+#save:disabled { opacity: .6; }
+#status { min-height: 1.4em; margin: 0; font-size: 13px; color: var(--muted); text-align: center; }
+#status.error { color: var(--danger); }
+
+@media (min-width: 820px) {
+  .app { grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto minmax(0, 1fr); column-gap: 24px; padding-bottom: 16px; }
+  header { grid-column: 1 / -1; }
+  #controls { align-content: start; padding: 0; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>珍奇浮水印</h1>
+    <label class="ghost" id="add" hidden>加照片<input class="sr-only" id="pick2" type="file" accept="image/*" multiple></label>
+  </header>
+
+  <main id="stage">
+    <label id="empty">
+      <img src="apple-touch-icon.png" alt="">
+      <strong>選照片</strong>
+      <span>可一次選多張。照片只在這支手機上處理，不會上傳。</span>
+      <input class="sr-only" id="pick" type="file" accept="image/*" multiple>
+    </label>
+    <div id="frame" hidden>
+      <img id="photo" alt="">
+      <img id="logo" src="logo.png" alt="Logo，可拖曳或用方向鍵移動" tabindex="0" draggable="false">
+    </div>
+  </main>
+
+  <section id="controls" hidden>
+    <div class="row"><label for="scale">大小</label><input id="scale" type="range" min="8" max="90" step="1"><output id="scaleOut"></output></div>
+    <div class="row"><label for="opacity">透明</label><input id="opacity" type="range" min="10" max="100" step="1"><output id="opacityOut"></output></div>
+    <div class="chips">
+      <button class="chip" id="presetCorner" type="button">右下</button>
+      <button class="chip" id="presetCenter" type="button">置中</button>
+      <button class="chip" id="applyAll" type="button" hidden>套用到全部</button>
+    </div>
+    <div id="thumbs"></div>
+    <button id="save" type="button">存到照片</button>
+    <p id="status" role="status"></p>
+  </section>
+</div>
+
+<script>
+// 預設值和 skill 的 scripts/watermark.py 相同
+const CORNER = { cx: 0.75, cy: 0.78, scale: 0.30 };
+const CENTER = { cx: 0.5, cy: 0.5, scale: 0.40 };
+const DEFAULT_OPACITY = 1;
+const JPEG_QUALITY = 0.95;
+// iPhone 的 canvas 有面積上限，超過會畫出空白圖
+const MAX_PIXELS = 16_000_000;
+const STORE_KEY = 'watermark-settings';
+
+const $ = id => document.getElementById(id);
+const stage = $('stage'), frame = $('frame'), photo = $('photo'), logo = $('logo');
+const saveBtn = $('save'), statusEl = $('status');
+
+let photos = [];
+let current = null;
+let pendingFiles = null;
+
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (saved && typeof saved.cx === 'number') return saved;
+  } catch {}
+  return { ...CORNER, opacity: DEFAULT_OPACITY };
+}
+
+function rememberSettings({ cx, cy, scale, opacity }) {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ cx, cy, scale, opacity })); } catch {}
+}
+
+const logoRatio = () => (logo.naturalWidth / logo.naturalHeight) || 5831 / 4690;
+
+// Logo 不能超出照片，成品才不會被裁切
+function clampToPhoto(p) {
+  const aspect = p.width / p.height;
+  p.scale = Math.min(p.scale, 0.9, logoRatio() / aspect);
+  p.scale = Math.max(p.scale, 0.08);
+  const halfW = p.scale / 2;
+  const halfH = p.scale * aspect / logoRatio() / 2;
+  p.cx = Math.min(1 - halfW, Math.max(halfW, p.cx));
+  p.cy = Math.min(1 - halfH, Math.max(halfH, p.cy));
+}
+
+function fitFrame() {
+  if (!current) return;
+  const box = stage.getBoundingClientRect();
+  const ratio = Math.min(box.width / current.width, box.height / current.height);
+  frame.style.width = `${current.width * ratio}px`;
+  frame.style.height = `${current.height * ratio}px`;
+}
+
+function paintLogo() {
+  const p = current;
+  logo.style.left = `${p.cx * 100}%`;
+  logo.style.top = `${p.cy * 100}%`;
+  logo.style.width = `${p.scale * 100}%`;
+  logo.style.opacity = p.opacity;
+  $('scale').value = Math.round(p.scale * 100);
+  $('opacity').value = Math.round(p.opacity * 100);
+  $('scaleOut').textContent = `${Math.round(p.scale * 100)}%`;
+  $('opacityOut').textContent = `${Math.round(p.opacity * 100)}%`;
+}
+
+function changed() {
+  clampToPhoto(current);
+  paintLogo();
+  rememberSettings(current);
+  clearPending();
+}
+
+function clearPending() {
+  pendingFiles = null;
+  setStatus('');
+  updateSaveLabel();
+}
+
+function setStatus(text, isError = false) {
+  statusEl.textContent = text;
+  statusEl.classList.toggle('error', isError);
+}
+
+function updateSaveLabel() {
+  if (pendingFiles) saveBtn.textContent = '照片準備好了，點這裡儲存';
+  else saveBtn.textContent = photos.length > 1 ? `全部 ${photos.length} 張存到照片` : '存到照片';
+}
+
+function renderThumbs() {
+  const box = $('thumbs');
+  box.textContent = '';
+  if (photos.length < 2) return;
+  photos.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = 'thumb' + (p === current ? ' on' : '');
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.setAttribute('aria-label', `編輯第 ${i + 1} 張`);
+    const img = document.createElement('img');
+    img.src = p.url;
+    img.alt = '';
+    open.append(img);
+    open.onclick = () => select(p);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'x';
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', `移除第 ${i + 1} 張`);
+    remove.onclick = () => removePhoto(p);
+    item.append(open, remove);
+    box.append(item);
+  });
+}
+
+function refreshLayout() {
+  const has = photos.length > 0;
+  $('empty').hidden = has;
+  frame.hidden = !has;
+  $('controls').hidden = !has;
+  $('add').hidden = !has;
+  $('applyAll').hidden = photos.length < 2;
+  renderThumbs();
+  updateSaveLabel();
+}
+
+function select(p) {
+  current = p;
+  photo.src = p.url;
+  refreshLayout();
+  fitFrame();
+  clampToPhoto(p);
+  paintLogo();
+}
+
+function removePhoto(p) {
+  URL.revokeObjectURL(p.url);
+  const index = photos.indexOf(p);
+  photos.splice(index, 1);
+  clearPending();
+  if (!photos.length) {
+    current = null;
+    refreshLayout();
+  } else if (p === current) {
+    select(photos[Math.min(index, photos.length - 1)]);
+  } else {
+    refreshLayout();
+  }
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+async function addFiles(fileList) {
+  const defaults = loadSettings();
+  let failed = 0;
+  let first = null;
+  for (const file of fileList) {
+    if (file.type && !file.type.startsWith('image/')) { failed++; continue; }
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await loadImage(url);
+      const entry = { file, url, width: img.naturalWidth, height: img.naturalHeight, ...defaults };
+      clampToPhoto(entry);
+      photos.push(entry);
+      first = first || entry;
+    } catch {
+      URL.revokeObjectURL(url);
+      failed++;
+    }
+  }
+  if (first) select(first);
+  if (failed) setStatus(`有 ${failed} 個檔案打不開，已略過`, true);
+}
+
+function outputName(file) {
+  const stem = (file.name || 'photo').replace(/\.[^.]+$/, '');
+  return `${stem}_watermarked${file.type === 'image/png' ? '.png' : '.jpg'}`;
+}
+
+// 大幅縮小時先對半縮，Logo 邊緣才不會鋸齒
+function scaledLogo(width, height) {
+  let source = logo;
+  let w = logo.naturalWidth, h = logo.naturalHeight;
+  while (w / 2 > width) {
+    w = Math.round(w / 2);
+    h = Math.round(h / 2);
+    const step = document.createElement('canvas');
+    step.width = w;
+    step.height = h;
+    const ctx = step.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(source, 0, 0, w, h);
+    source = step;
+  }
+  return source;
+}
+
+async function renderPhoto(p) {
+  const img = await loadImage(p.url);
+  const shrink = Math.min(1, Math.sqrt(MAX_PIXELS / (p.width * p.height)));
+  const w = Math.round(p.width * shrink), h = Math.round(p.height * shrink);
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, w, h);
+  const logoW = p.scale * w, logoH = logoW / logoRatio();
+  ctx.globalAlpha = p.opacity;
+  ctx.drawImage(scaledLogo(logoW, logoH), p.cx * w - logoW / 2, p.cy * h - logoH / 2, logoW, logoH);
+  const name = outputName(p.file);
+  const type = name.endsWith('.png') ? 'image/png' : 'image/jpeg';
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, type, JPEG_QUALITY));
+  canvas.width = canvas.height = 0;
+  if (!blob) throw new Error('canvas');
+  return { file: new File([blob], name, { type }), shrunk: shrink < 1 };
+}
+
+function downloadFiles(files) {
+  for (const file of files) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+  }
+}
+
+// 手機用系統分享表，才有「儲存影像」可以存進相簿；電腦直接下載
+async function deliver(files) {
+  const canShare = matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files });
+  if (!canShare) {
+    downloadFiles(files);
+    setStatus(`已下載 ${files.length} 張`);
+    return true;
+  }
+  try {
+    await navigator.share({ files });
+    setStatus('完成');
+    return true;
+  } catch (error) {
+    if (error.name === 'AbortError') { setStatus('已取消，照片還沒存'); return true; }
+    if (error.name === 'NotAllowedError') return false;
+    throw error;
+  }
+}
+
+saveBtn.onclick = async () => {
+  saveBtn.disabled = true;
+  try {
+    if (!pendingFiles) {
+      setStatus('處理中…');
+      const results = [];
+      for (const p of photos) results.push(await renderPhoto(p));
+      pendingFiles = results.map(r => r.file);
+      if (results.some(r => r.shrunk)) setStatus('照片太大，已縮到 1600 萬像素');
+    }
+    // 處理太久時 Safari 不准直接開分享表，要請使用者再按一次
+    if (await deliver(pendingFiles)) pendingFiles = null;
+  } catch {
+    pendingFiles = null;
+    setStatus('存檔失敗，可能是照片太大或記憶體不足，請少選幾張再試', true);
+  }
+  saveBtn.disabled = false;
+  updateSaveLabel();
+};
+
+// 單指拖 Logo、雙指縮放
+const pointers = new Map();
+let drag = null, pinch = null;
+
+const pinchDistance = () => {
+  const [a, b] = [...pointers.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+};
+
+stage.addEventListener('pointerdown', e => {
+  if (!current || !frame.contains(e.target)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  stage.setPointerCapture(e.pointerId);
+  if (pointers.size === 1 && e.target === logo) {
+    const rect = frame.getBoundingClientRect();
+    drag = { dx: e.clientX - (rect.left + current.cx * rect.width), dy: e.clientY - (rect.top + current.cy * rect.height) };
+    logo.classList.add('dragging');
+    e.preventDefault();
+  } else if (pointers.size === 2) {
+    drag = null;
+    pinch = { distance: pinchDistance(), scale: current.scale };
+  }
+});
+
+stage.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pointers.size === 2) {
+    current.scale = pinch.scale * pinchDistance() / pinch.distance;
+    changed();
+  } else if (drag) {
+    const rect = frame.getBoundingClientRect();
+    current.cx = (e.clientX - drag.dx - rect.left) / rect.width;
+    current.cy = (e.clientY - drag.dy - rect.top) / rect.height;
+    changed();
+  }
+});
+
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinch = null;
+  if (!pointers.size) {
+    drag = null;
+    logo.classList.remove('dragging');
+  }
+}
+stage.addEventListener('pointerup', endPointer);
+stage.addEventListener('pointercancel', endPointer);
+
+logo.addEventListener('keydown', e => {
+  const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  if (!step || !current) return;
+  e.preventDefault();
+  current.cx += step[0] * 0.01;
+  current.cy += step[1] * 0.01;
+  changed();
+});
+
+$('scale').oninput = e => { current.scale = e.target.value / 100; changed(); };
+$('opacity').oninput = e => { current.opacity = e.target.value / 100; changed(); };
+$('presetCorner').onclick = () => { Object.assign(current, CORNER); changed(); };
+$('presetCenter').onclick = () => { Object.assign(current, CENTER); changed(); };
+$('applyAll').onclick = () => {
+  const { cx, cy, scale, opacity } = current;
+  for (const p of photos) {
+    Object.assign(p, { cx, cy, scale, opacity });
+    clampToPhoto(p);
+  }
+  clearPending();
+  setStatus(`已套用到 ${photos.length} 張`);
+};
+
+for (const input of [$('pick'), $('pick2')]) {
+  input.onchange = async () => {
+    await addFiles(input.files);
+    input.value = '';
+  };
+}
+
+const empty = $('empty');
+window.addEventListener('dragover', e => { e.preventDefault(); empty.classList.add('over'); });
+window.addEventListener('dragleave', () => empty.classList.remove('over'));
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  empty.classList.remove('over');
+  addFiles(e.dataTransfer.files);
+});
+
+new ResizeObserver(fitFrame).observe(stage);
+logo.addEventListener('load', () => { if (current) changed(); });
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>
